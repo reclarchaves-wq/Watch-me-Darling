@@ -1,0 +1,82 @@
+// Dirty Dozen payload verification matrix aligned with security_spec.md and firestore.rules.
+export const DIRTY_DOZEN_CASES = [
+  {
+    name: '1. Unauthenticated write to /users/uid123',
+    path: '/users/uid123',
+    auth: null,
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '2. Unverified email account writing /users/uid123',
+    path: '/users/uid123',
+    auth: { uid: 'uid123', token: { email_verified: false } },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '3. Cross-user read on /users/victim/private/contact',
+    path: '/users/victim/private/contact',
+    auth: { uid: 'attacker', token: { email_verified: true } },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '4. UID spoofing inside payload data.uid',
+    path: '/users/uid123',
+    auth: { uid: 'uid123', token: { email_verified: true } },
+    payload: { uid: 'otherUser' },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '5. Ghost field injection (isAdmin: true)',
+    path: '/users/uid123',
+    auth: { uid: 'uid123', token: { email_verified: true } },
+    payload: { isAdmin: true },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '6. Underage bypass (ageVerified18Plus: false)',
+    path: '/users/uid123',
+    auth: { uid: 'uid123', token: { email_verified: true } },
+    payload: { ageVerified18Plus: false },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '7. Client timestamp forgery (createdAt != request.time)',
+    path: '/users/uid123',
+    auth: { uid: 'uid123', token: { email_verified: true } },
+    payload: { createdAt: '2020-01-01T00:00:00Z' },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '8. Immutable field tampering on update (uid/createdAt/contactMethod)',
+    path: '/users/uid123',
+    auth: { uid: 'uid123', token: { email_verified: true } },
+    payload: { contactMethod: 'mobile' },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '9. Oversized displayName DoW string (>48 chars)',
+    path: '/users/uid123',
+    auth: { uid: 'uid123', token: { email_verified: true } },
+    payload: { displayName: 'A'.repeat(20000) },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '10. Invalid private docId (/users/uid123/private/evil)',
+    path: '/users/uid123/private/evil',
+    auth: { uid: 'uid123', token: { email_verified: true } },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '11. Unfiltered collection enumeration LIST /users',
+    path: '/users',
+    auth: { uid: 'uid123', token: { email_verified: true } },
+    expected: 'PERMISSION_DENIED',
+  },
+  {
+    name: '12. Raw PII email/phone attached to top-level /users/uid123',
+    path: '/users/uid123',
+    auth: { uid: 'uid123', token: { email_verified: true } },
+    payload: { email: 'leak@example.com' },
+    expected: 'PERMISSION_DENIED',
+  },
+] as const;

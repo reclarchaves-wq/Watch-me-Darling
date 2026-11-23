@@ -1,0 +1,101 @@
+{
+  "entities": {
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "Verified adult user account summary for Watch me Darling without raw PII or client-writable billing entitlements.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the account owner."
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 48,
+          "description": "Display name inside Watch me Darling."
+        },
+        "contactMethod": {
+          "type": "string",
+          "enum": ["email", "mobile", "google"],
+          "description": "Primary verification channel used at signup."
+        },
+        "verified": {
+          "type": "boolean",
+          "description": "True once email or mobile SMS verification succeeds."
+        },
+        "ageVerified18Plus": {
+          "type": "boolean",
+          "description": "Must be true confirming user is 18 years or older."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when verified profile was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when profile was last updated."
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "contactMethod",
+        "verified",
+        "ageVerified18Plus",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "UserPrivateContact": {
+      "title": "UserPrivateContact",
+      "description": "Strictly isolated PII document storing verified email or mobile phone number.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID of the owner."
+        },
+        "email": {
+          "type": "string",
+          "maxLength": 160,
+          "description": "Verified email address (empty string if mobile-only)."
+        },
+        "phoneNumber": {
+          "type": "string",
+          "maxLength": 32,
+          "description": "Verified E.164 mobile number (empty string if email-only)."
+        },
+        "verifiedMethod": {
+          "type": "string",
+          "enum": ["email", "mobile", "google"],
+          "description": "Channel through which ownership was verified."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when contact details were updated."
+        }
+      },
+      "required": ["uid", "email", "phoneNumber", "verifiedMethod", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserAccount" },
+      "description": "Verified user account summary keyed by Firebase Auth UID."
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/UserPrivateContact" },
+      "description": "Owner-only PII subcollection (contact document) isolated from top-level user profiles."
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "Watch me Darling",
+  "description": "18+ adults-only cross-platform sensory companion connecting distant lovers and solo listeners via smartwatch pulse vibrations, dual earbud audio routing, unlimited local video playback, and AI sensory chat.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

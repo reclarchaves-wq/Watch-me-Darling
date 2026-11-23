@@ -1,0 +1,31 @@
+{
+  "packageId": "app.watchmedarling.companion",
+  "host": "ais-pre-rb2nbclqgrhyfashu6gflv-843808826475.asia-east1.run.app",
+  "name": "Watch me Darling — 18+ Tactile Watch & Audio",
+  "launcherName": "Watch me Darling",
+  "display": "standalone",
+  "themeColor": "#0D0C0F",
+  "themeColorDark": "#0D0C0F",
+  "navigationColor": "#0D0C0F",
+  "navigationColorDark": "#0D0C0F",
+  "backgroundColor": "#0D0C0F",
+  "enableNotifications": false,
+  "startUrl": "/",
+  "iconUrl": "/pwa-512x512.png",
+  "maskableIconUrl": "/pwa-maskable-512x512.png",
+  "shortcuts": [
+    { "name": "Solo Mode", "shortName": "Solo", "url": "/?mode=solo" },
+    { "name": "Couple Control", "shortName": "Control", "url": "/?mode=control" },
+    { "name": "Video Mode", "shortName": "Video", "url": "/?mode=video" }
+  ],
+  "appVersionName": "1.0.0",
+  "appVersionCode": 1,
+  "orientation": "any",
+  "minSdkVersion": 24,
+  "ageRating": "18+",
+  "features": {
+    "bluetooth": true,
+    "vibrate": true,
+    "audioOutput": true
+  }
+}
