@@ -266,7 +266,8 @@ export default function App() {
         nextFrame.intensity,
         nextFrame.frequencyHz,
         watchRef.current.platformBridge,
-        vibrateRef.current
+        vibrateRef.current,
+        audioHapticEngine.getHapticDelayMs()
       );
 
       if (
@@ -765,6 +766,20 @@ export default function App() {
                 onToggleSyncWithPartner={setSyncVideoWithPartner}
                 onEmitVideoSync={handleEmitVideoSync}
                 remoteVideoCommand={remoteVideoCommand}
+                watch={watch}
+                earbud={earbud}
+                onUpdateEarbud={handleUpdateEarbud}
+                onSelectAudioSink={async (id) => {
+                  await audioHapticEngine.setAudioSink(id);
+                }}
+                earbudVolume={earbudVolume}
+                onChangeEarbudVolume={handleChangeEarbudVolume}
+                watchIntensityScale={watchIntensityScale}
+                onChangeWatchIntensity={handleChangeWatchIntensity}
+                onOpenWatchQr={() => setWatchQrModalOpen(true)}
+                onOpenDevices={() => setDevicesOpen(true)}
+                onTestWatchVibration={handleTestWatchVibration}
+                onTestEarbudAudio={handleTestEarbudAudio}
               />
             )}
 

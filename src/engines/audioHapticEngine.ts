@@ -22,8 +22,12 @@ class AudioHapticEngine {
 
   // Settings
   private earbudVolume = 75;
+  private earbudMuted = false;
   private earbudBalance = 0;
   private watchIntensityScale = 80;
+  private latencyOffsetMs = 0;
+  private mediaPlaying = true;
+  private audioDelay: DelayNode | null = null;
   private curve: ConversionCurve = 'sub-bass';
   private activePattern: PulsePattern = 'wave';
   private sourceMode: HapticFrame['sourceMode'] = 'solo';
@@ -45,13 +49,20 @@ class AudioHapticEngine {
       this.analyser.fftSize = 256;
       this.analyser.smoothingTimeConstant = 0.72;
 
+      this.audioDelay = this.ctx.createDelay(0.5);
+      this.audioDelay.delayTime.value =
+        this.latencyOffsetMs > 0 ? this.latencyOffsetMs / 1000 : 0;
+
       this.masterGain = this.ctx.createGain();
-      this.masterGain.gain.value = this.earbudVolume / 100;
+      this.masterGain.gain.value = this.earbudMuted ? 0 : this.earbudVolume / 100;
 
       this.panner = this.ctx.createStereoPanner();
       this.panner.pan.value = this.earbudBalance;
 
-      this.analyser.connect(this.panner);
+      // Analyser taps signal BEFORE masterGain & audioDelay so muting/lowering earbuds
+      // or delaying earbud audio never suppresses smartwatch haptic extraction.
+      this.analyser.connect(this.audioDelay);
+      this.audioDelay.connect(this.panner);
       this.panner.connect(this.masterGain);
       this.masterGain.connect(this.ctx.destination);
 
@@ -78,7 +89,16 @@ class AudioHapticEngine {
   public setEarbudVolume(vol: number): void {
     this.earbudVolume = Math.max(0, Math.min(100, vol));
     if (this.masterGain && this.ctx) {
-      this.masterGain.gain.setTargetAtTime(this.earbudVolume / 100, this.ctx.currentTime, 0.03);
+      const target = this.earbudMuted ? 0 : this.earbudVolume / 100;
+      this.masterGain.gain.setTargetAtTime(target, this.ctx.currentTime, 0.03);
+    }
+  }
+
+  public setEarbudMuted(muted: boolean): void {
+    this.earbudMuted = muted;
+    if (this.masterGain && this.ctx) {
+      const target = this.earbudMuted ? 0 : this.earbudVolume / 100;
+      this.masterGain.gain.setTargetAtTime(target, this.ctx.currentTime, 0.02);
     }
   }
 
@@ -87,6 +107,30 @@ class AudioHapticEngine {
     if (this.panner && this.ctx) {
       this.panner.pan.setTargetAtTime(this.earbudBalance, this.ctx.currentTime, 0.03);
     }
+  }
+
+  public setLatencyOffsetMs(offsetMs: number): void {
+    this.latencyOffsetMs = Math.max(-200, Math.min(200, Math.round(offsetMs)));
+    if (this.audioDelay && this.ctx) {
+      const delaySec = this.latencyOffsetMs > 0 ? this.latencyOffsetMs / 1000 : 0;
+      this.audioDelay.delayTime.setTargetAtTime(delaySec, this.ctx.currentTime, 0.02);
+    }
+  }
+
+  public getHapticDelayMs(): number {
+    return this.latencyOffsetMs < 0 ? Math.abs(this.latencyOffsetMs) : 0;
+  }
+
+  public setMediaPlaying(playing: boolean): void {
+    this.mediaPlaying = playing;
+  }
+
+  public isSinkSelectionSupported(): boolean {
+    if (typeof window === 'undefined') return false;
+    const proto = (window.AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext)
+      ?.prototype as (AudioContext & { setSinkId?: unknown }) | undefined;
+    return Boolean(proto && typeof proto.setSinkId === 'function');
   }
 
   public async setAudioSink(deviceId: string): Promise<boolean> {
@@ -237,9 +281,27 @@ class AudioHapticEngine {
       // ignore
     }
     src.connect(this.analyser);
+    this.ensureAnalyserOutputConnected();
     this.activeMediaEl = el;
+    this.mediaPlaying = !el.paused;
     this.activeSource = 'media';
     this.sourceMode = mode;
+  }
+
+  private ensureAnalyserOutputConnected(): void {
+    const target = this.audioDelay ?? this.panner;
+    if (this.analyser && target) {
+      try {
+        this.analyser.disconnect();
+      } catch {
+        // ignore
+      }
+      try {
+        this.analyser.connect(target);
+      } catch {
+        // ignore
+      }
+    }
   }
 
   public async startMicrophone(): Promise<void> {
@@ -268,14 +330,7 @@ class AudioHapticEngine {
 
   public stopMicrophone(): void {
     this.stopMic();
-    // Reconnect analyser -> panner for audio playback
-    if (this.analyser && this.panner) {
-      try {
-        this.analyser.connect(this.panner);
-      } catch {
-        // ignore
-      }
-    }
+    this.ensureAnalyserOutputConnected();
     if (this.activeSource === 'mic') {
       this.activeSource = 'none';
     }
@@ -358,13 +413,7 @@ class AudioHapticEngine {
   public stopAllSources(): void {
     this.stopSynth();
     this.stopMic();
-    if (this.analyser && this.panner) {
-      try {
-        this.analyser.connect(this.panner);
-      } catch {
-        // ignore
-      }
-    }
+    this.ensureAnalyserOutputConnected();
     this.activeSource = 'none';
   }
 
@@ -402,7 +451,12 @@ class AudioHapticEngine {
       };
     }
 
-    if (!this.analyser || !this.frequencyData || this.activeSource === 'none') {
+    if (
+      !this.analyser ||
+      !this.frequencyData ||
+      this.activeSource === 'none' ||
+      (this.activeSource === 'media' && !this.mediaPlaying)
+    ) {
       return {
         intensity: 0,
         frequencyHz: 48,

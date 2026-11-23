@@ -139,7 +139,8 @@ export function dispatchWatchHaptic(
   intensity: number,
   frequencyHz: number,
   bridgeMode: WatchDeviceState['platformBridge'],
-  vibrateEnabled: boolean
+  vibrateEnabled: boolean,
+  hapticDelayMs = 0
 ): void {
   const clampedIntensity = Math.max(0, Math.min(100, Math.round(intensity)));
   const now = performance.now();
@@ -149,38 +150,71 @@ export function dispatchWatchHaptic(
   }
   bleSession.lastWriteMs = now;
 
-  // 1. Real BLE GATT write if smartwatch exposes a writable haptic/UART characteristic
-  if (bridgeMode === 'ble-gatt' && bleSession.writableChar) {
-    try {
-      if (bleSession.writableChar.uuid === NORDIC_UART_RX) {
-        const cmd = new TextEncoder().encode(
-          `V:${clampedIntensity}:${Math.round(frequencyHz)};`
-        );
-        void bleSession.writableChar.writeValueWithoutResponse(cmd);
-      } else {
-        const level = clampedIntensity > 65 ? 2 : clampedIntensity > 20 ? 1 : 0;
-        void bleSession.writableChar.writeValueWithoutResponse(new Uint8Array([level]));
+  const emitNow = () => {
+    // 1. Real BLE GATT write if smartwatch exposes a writable haptic/UART characteristic
+    if (bridgeMode === 'ble-gatt' && bleSession.writableChar) {
+      try {
+        if (bleSession.writableChar.uuid === NORDIC_UART_RX) {
+          const cmd = new TextEncoder().encode(
+            `V:${clampedIntensity}:${Math.round(frequencyHz)};`
+          );
+          void bleSession.writableChar.writeValueWithoutResponse(cmd);
+        } else {
+          const level = clampedIntensity > 65 ? 2 : clampedIntensity > 20 ? 1 : 0;
+          void bleSession.writableChar.writeValueWithoutResponse(new Uint8Array([level]));
+        }
+      } catch {
+        // Ignore transient GATT busy errors
       }
-    } catch {
-      // Ignore transient GATT busy errors
     }
-  }
 
-  // 2. QR-linked Smartwatch WebSocket relay (Vibration Only · Zero Audio)
-  if (bridgeMode === 'qr-watch-link' && qrPulseSender) {
-    try {
-      qrPulseSender(clampedIntensity, Math.round(frequencyHz));
-    } catch {
-      // Ignore transient socket send error
+    // 2. QR-linked Smartwatch WebSocket relay (Vibration Only · Zero Audio)
+    if (bridgeMode === 'qr-watch-link' && qrPulseSender) {
+      try {
+        qrPulseSender(clampedIntensity, Math.round(frequencyHz));
+      } catch {
+        // Ignore transient socket send error
+      }
     }
-  }
 
-  // 3. Native Android / Mobile Haptics fallback
-  if (vibrateEnabled && isMobileVibrateSupported()) {
-    if (clampedIntensity > 12) {
-      const pulseMs = Math.max(12, Math.min(65, Math.round((clampedIntensity / 100) * 60)));
-      navigator.vibrate(pulseMs);
+    // 3. Native Android / Mobile Haptics fallback
+    if (vibrateEnabled && isMobileVibrateSupported()) {
+      if (clampedIntensity > 12) {
+        const pulseMs = Math.max(12, Math.min(65, Math.round((clampedIntensity / 100) * 60)));
+        navigator.vibrate(pulseMs);
+      }
     }
+  };
+
+  if (hapticDelayMs > 5) {
+    window.setTimeout(emitNow, Math.min(250, Math.round(hapticDelayMs)));
+  } else {
+    emitNow();
+  }
+}
+
+export function canPickAudioOutputDevice(): boolean {
+  if (typeof navigator === 'undefined' || !navigator.mediaDevices) return false;
+  const md = navigator.mediaDevices as MediaDevices & {
+    selectAudioOutput?: () => Promise<MediaDeviceInfo>;
+  };
+  return typeof md.selectAudioOutput === 'function';
+}
+
+export async function selectEarbudOutputPrompt(): Promise<AudioOutputOption | null> {
+  if (typeof navigator === 'undefined' || !navigator.mediaDevices) return null;
+  const md = navigator.mediaDevices as MediaDevices & {
+    selectAudioOutput?: () => Promise<MediaDeviceInfo>;
+  };
+  if (typeof md.selectAudioOutput !== 'function') return null;
+  try {
+    const info = await md.selectAudioOutput();
+    return {
+      deviceId: info.deviceId || 'default',
+      label: info.label || 'Selected Bluetooth Earbuds',
+    };
+  } catch {
+    return null;
   }
 }
 

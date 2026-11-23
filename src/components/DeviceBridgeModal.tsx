@@ -1,11 +1,13 @@
-import { Bluetooth, Headphones, QrCode, Smartphone, Watch, Waves, X } from 'lucide-react';
+import { Bluetooth, Headphones, QrCode, RefreshCw, Smartphone, Watch, Waves, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
+  canPickAudioOutputDevice,
   disconnectSmartwatch,
   isMobileVibrateSupported,
   isWebBluetoothSupported,
   listAudioOutputDevices,
   scanAndPairSmartwatch,
+  selectEarbudOutputPrompt,
 } from '../engines/bluetoothBridge.ts';
 import { getPlatformMeta } from '../utils/platform.ts';
 import type {
@@ -216,9 +218,44 @@ export function DeviceBridgeModal({
 
             <div className="mt-4 space-y-3">
               <div>
-                <label htmlFor="audio-sink-select" className="block text-[11px] text-[#A099A8]">
-                  Select Earbud Audio Route
-                </label>
+                <div className="flex items-center justify-between text-[11px] text-[#A099A8]">
+                  <label htmlFor="audio-sink-select">Select Earbud Audio Route</label>
+                  <div className="flex items-center gap-2">
+                    {canPickAudioOutputDevice() && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void selectEarbudOutputPrompt().then((picked) => {
+                            if (!picked) return;
+                            onUpdateEarbud({
+                              ...earbud,
+                              connected: true,
+                              deviceId: picked.deviceId,
+                              label: picked.label,
+                            });
+                            setAudioOutputs((prev) =>
+                              prev.some((p) => p.deviceId === picked.deviceId)
+                                ? prev
+                                : [picked, ...prev]
+                            );
+                            void onSelectAudioSink(picked.deviceId);
+                          });
+                        }}
+                        className="text-[#E8C5A5] hover:underline cursor-pointer"
+                      >
+                        Pick Earbuds
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => void listAudioOutputDevices().then(setAudioOutputs)}
+                      className="inline-flex items-center gap-1 hover:text-[#F5F2EE] cursor-pointer"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      Refresh
+                    </button>
+                  </div>
+                </div>
                 <select
                   id="audio-sink-select"
                   value={earbud.deviceId}
